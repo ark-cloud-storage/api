@@ -1,0 +1,13 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "mysql"
+    url = env("DATABASE_URL")
+}
+
+model Cluster {
+    id String @id @db.VarChar(100)
+    secret String @db.VarChar(100)
+}

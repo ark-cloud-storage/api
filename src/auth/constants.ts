@@ -1,0 +1,2 @@
+export const CLUSTER_ID = "CLUSTER_ID";
+export const ALLOW_UNAUTHORIZED = "ALLOW_UNAUTHORIZED";
