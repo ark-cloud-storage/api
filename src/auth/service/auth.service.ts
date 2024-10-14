@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     ConflictException,
     Injectable,
     UnauthorizedException,
@@ -6,22 +7,41 @@ import {
 import { DatabaseService } from "../../database/service/database.service";
 import { randomBytes } from "crypto";
 import { ClusterDto } from "../dto/cluster.dto";
+import { ConfigService } from "@nestjs/config";
+import { ALLOW_REGISTRATION } from "../constants";
+import { boolean } from "boolean";
 
 /**
  * The authentication service that handles cluster registration and login
  */
 @Injectable()
 export class AuthService {
-    public constructor(private readonly databaseService: DatabaseService) {}
+    /**
+     * Initializes the authentication service
+     * @param databaseService The database service
+     * @param configService The configuration service
+     */
+    public constructor(
+        private readonly databaseService: DatabaseService,
+        private readonly configService: ConfigService,
+    ) {}
 
     /**
      * Registers a new cluster with the given ID
      * @param id The ID of the cluster
      * @returns The cluster DTO
      * @throws ConflictException If the cluster already exists
+     * @throws BadRequestException If registration is disabled
      * @throws Error If the database operation fails
      */
     public async register(id: string): Promise<ClusterDto> {
+        const registrationEnabled = boolean(
+            this.configService.get(ALLOW_REGISTRATION),
+        );
+        if (!registrationEnabled) {
+            throw new BadRequestException("Registration is disabled");
+        }
+
         // Find the cluster by ID
         const existingCluster = await this.databaseService.cluster.findFirst({
             where: { id },
