@@ -2,20 +2,28 @@ import {
     BadRequestException,
     ConflictException,
     Injectable,
+    Logger,
+    OnModuleInit,
     UnauthorizedException,
 } from "@nestjs/common";
 import { DatabaseService } from "../../database/service/database.service";
 import { randomBytes } from "crypto";
 import { ClusterDto } from "../dto/cluster.dto";
 import { ConfigService } from "@nestjs/config";
-import { ALLOW_REGISTRATION } from "../constants";
+import { ALLOW_REGISTRATION, REGISTER_CLUSTERS } from "../constants";
 import { boolean } from "boolean";
 
 /**
  * The authentication service that handles cluster registration and login
  */
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
+    /**
+     * The logger instance used to log messages
+     * @private
+     */
+    private readonly logger = new Logger(AuthService.name);
+
     /**
      * Initializes the authentication service
      * @param databaseService The database service
@@ -25,6 +33,27 @@ export class AuthService {
         private readonly databaseService: DatabaseService,
         private readonly configService: ConfigService,
     ) {}
+
+    public async onModuleInit(): Promise<void> {
+        const registerClusters =
+            this.configService.get<string>(REGISTER_CLUSTERS);
+        if (registerClusters) {
+            await this.registerClusters(registerClusters);
+        }
+    }
+
+    private async registerClusters(clustersString: string): Promise<void> {
+        const clusters = clustersString.split(",");
+        for (const cluster of clusters) {
+            const [id, secret] = cluster.split(":");
+            this.logger.log(`Registering cluster ${id} from configuration`);
+            await this.databaseService.cluster.upsert({
+                where: { id },
+                update: { secret },
+                create: { id, secret },
+            });
+        }
+    }
 
     /**
      * Registers a new cluster with the given ID
