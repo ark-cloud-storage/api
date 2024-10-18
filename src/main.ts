@@ -2,6 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { AuthGuard } from "./auth/gurad/auth.guard";
+import { CustomWsAdapter } from "./lib/custom-ws-adapter.service";
 
 /**
  * The main function that starts the NestJS application
@@ -10,6 +11,9 @@ import { AuthGuard } from "./auth/gurad/auth.guard";
 async function bootstrap() {
     // Create the NestJS application
     const app = await NestFactory.create(AppModule);
+
+    // Use ws adapter
+    app.useWebSocketAdapter(new CustomWsAdapter(app));
 
     // Enable validation for all routes
     app.useGlobalPipes(new ValidationPipe());

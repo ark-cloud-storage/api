@@ -43,9 +43,22 @@ export class AuthGuard implements CanActivate {
         }
 
         // Get cluster ID and secret from request headers
-        const request: Request = context.switchToHttp().getRequest();
-        const id: string = request.headers["x-cluster-id"];
-        const secret: string = request.headers["x-cluster-secret"];
+        let id: string;
+        let secret: string;
+        switch (context.getType()) {
+            case "http":
+                const httpRequest = context.switchToHttp().getRequest();
+                id = httpRequest.headers["x-cluster-id"];
+                secret = httpRequest.headers["x-cluster-secret"];
+                break;
+            case "ws":
+                const wsRequest = context.switchToWs().getClient();
+                id = wsRequest.upgradeHeaders["x-cluster-id"];
+                secret = wsRequest.upgradeHeaders["x-cluster-secret"];
+                break;
+            default:
+                throw new Error("Invalid context type");
+        }
 
         // Verify the cluster ID and secret
         if (!id || !secret) {

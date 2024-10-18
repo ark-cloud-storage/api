@@ -12,5 +12,6 @@ import { ConfigModule } from "@nestjs/config";
     imports: [DatabaseModule, ConfigModule],
     controllers: [AuthController],
     providers: [AuthService, AuthGuard],
+    exports: [AuthService, AuthGuard],
 })
 export class AuthModule {}

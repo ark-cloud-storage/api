@@ -1,19 +1,19 @@
-import { AuthGuard } from "./auth.guard";
 import { Test, TestingModule } from "@nestjs/testing";
+import { InventoryController } from "./inventory.controller";
 import { AppModule } from "../../app.module";
 
-describe("AuthGuard", () => {
-    let authGuard: AuthGuard;
+describe("InventoryController", () => {
+    let controller: InventoryController;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             imports: [AppModule],
         }).compile();
 
-        authGuard = module.get<AuthGuard>(AuthGuard);
+        controller = module.get<InventoryController>(InventoryController);
     });
 
     it("should be defined", () => {
-        expect(authGuard).toBeDefined();
+        expect(controller).toBeDefined();
     });
 });

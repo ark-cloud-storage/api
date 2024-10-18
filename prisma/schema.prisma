@@ -8,6 +8,15 @@ datasource db {
 }
 
 model Cluster {
-    id String @id @db.VarChar(100)
+    id String @db.VarChar(100)
     secret String @db.VarChar(100)
+    @@id([id])
+}
+
+model DedicatedStorage {
+    resourceId String @db.VarChar(100)
+    clusterId String @db.VarChar(100)
+    ownerId String @db.VarChar(100)
+    amount Int
+    @@id([resourceId, clusterId])
 }

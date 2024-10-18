@@ -1,19 +1,19 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { DatabaseModule } from "./database.module";
+import { InventoryModule } from "./inventory.module";
 import { AppModule } from "../app.module";
 
-describe("DatabaseModule", () => {
-    let databaseModule: DatabaseModule;
+describe("InventoryModule", () => {
+    let inventoryModule: InventoryModule;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             imports: [AppModule],
         }).compile();
 
-        databaseModule = module.get<DatabaseModule>(DatabaseModule);
+        inventoryModule = module.get<InventoryModule>(InventoryModule);
     });
 
     it("should be defined", () => {
-        expect(databaseModule).toBeDefined();
+        expect(inventoryModule).toBeDefined();
     });
 });
