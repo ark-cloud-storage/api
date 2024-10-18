@@ -1,4 +1,4 @@
-import { IsString } from "class-validator";
+import { IsInt, IsString } from "class-validator";
 
 /**
  * Abstract storage data transfer object with type
@@ -13,8 +13,8 @@ export abstract class StorageDto<T extends string = string> {
     /**
      * The ID of the owner of the storage
      */
-    @IsString()
-    ownerId: string;
+    @IsInt()
+    ownerId: number;
 
     /**
      * Creates a new storage data transfer object
@@ -22,7 +22,7 @@ export abstract class StorageDto<T extends string = string> {
      * @param ownerId The ID of the owner of the storage
      * @protected
      */
-    protected constructor(type: T, ownerId: string) {
+    protected constructor(type: T, ownerId: number) {
         this.type = type;
         this.ownerId = ownerId;
     }

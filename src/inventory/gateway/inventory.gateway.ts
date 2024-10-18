@@ -155,7 +155,7 @@ export class InventoryGateway
     private sendInventoryUpdate(socket: WebSocket, storage: StorageDto): void {
         socket.send(
             JSON.stringify({
-                event: "inventory_update",
+                event: "update",
                 data: storage,
             }),
         );

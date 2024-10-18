@@ -14,9 +14,9 @@ model Cluster {
 }
 
 model DedicatedStorage {
-    resourceId String @db.VarChar(100)
+    resourceId String @db.VarChar(500)
     clusterId String @db.VarChar(100)
-    ownerId String @db.VarChar(100)
+    ownerId Int
     amount Int
-    @@id([resourceId, clusterId])
+    @@id([clusterId, ownerId, resourceId])
 }

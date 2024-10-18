@@ -24,7 +24,7 @@ export class DedicatedStorageDto extends StorageDto<"dedicated"> {
      * @param resourceId The unique ID of the cluster
      * @param amount The amount of the resource
      */
-    public constructor(ownerId: string, resourceId: string, amount: number) {
+    public constructor(ownerId: number, resourceId: string, amount: number) {
         super("dedicated", ownerId);
         this.resourceId = resourceId;
         this.amount = amount;

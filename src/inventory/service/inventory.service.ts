@@ -78,8 +78,9 @@ export class InventoryService {
         const updateStorage =
             await this.databaseService.dedicatedStorage.upsert({
                 where: {
-                    resourceId_clusterId: {
+                    clusterId_ownerId_resourceId: {
                         clusterId,
+                        ownerId: storage.ownerId,
                         resourceId: storage.resourceId,
                     },
                 },
