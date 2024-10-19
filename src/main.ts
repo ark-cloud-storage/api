@@ -3,6 +3,7 @@ import { AppModule } from "./app.module";
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { AuthGuard } from "./auth/gurad/auth.guard";
 import { CustomWsAdapter } from "./lib/custom-ws-adapter.service";
+import * as process from "node:process";
 
 /**
  * The main function that starts the NestJS application
@@ -10,7 +11,11 @@ import { CustomWsAdapter } from "./lib/custom-ws-adapter.service";
  */
 async function bootstrap() {
     // Create the NestJS application
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create(AppModule, {
+        cors: {
+            origin: process.env.CORS_ORIGIN || "*",
+        },
+    });
 
     // Use ws adapter
     app.useWebSocketAdapter(new CustomWsAdapter(app));
