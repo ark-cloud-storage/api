@@ -31,5 +31,6 @@ WORKDIR /home/node
 COPY --from=build --chown=node:node /home/node/package*.json ./
 COPY --from=build --chown=node:node /home/node/node_modules/ ./node_modules/
 COPY --from=build --chown=node:node /home/node/dist ./dist/
+COPY --from=build --chown=node:node /home/node/prisma ./prisma/
 
 CMD ["node", "dist/main"]
