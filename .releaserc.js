@@ -7,14 +7,14 @@ module.exports = {
             "@semantic-release/npm",
             {
                 npmPublish: false,
-            }
+            },
         ],
         [
             "@semantic-release/git",
             {
                 assets: ["package.json"],
                 message:
-                    "release: ${nextRelease.version}\n\n${nextRelease.notes}",
+                    "chore: ${nextRelease.version}\n\n${nextRelease.notes}\n\n[skip ci]",
             },
         ],
         ["@semantic-release/github", {}],
