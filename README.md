@@ -18,5 +18,5 @@ An example of the `docker-compose.yml` file is provided in the root of the proje
     [CloudStorage]
     ID=your-cluster-id
     Secret=yout-cluster-secret
-    URL=ws://localhost:3000
+    URL=ws://127.0.0.1:3000
   ```
