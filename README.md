@@ -13,10 +13,11 @@ An example of the `docker-compose.yml` file is provided in the root of the proje
 - Start the database and the api with `docker-compose up -d db`.
 - Run the migrations with `docker-compose run api npx prisma migrate deploy`.
 - Start the api with `docker-compose up -d api`.
-- Edit your GameUserSettings.ini file to point to the api:
+- Edit your GameUserSettings.ini file to point to the api:  
   ```
     [CloudStorage]
     ID=your-cluster-id
-    Secret=yout-cluster-secret
-    URL=ws://127.0.0.1:3000
+    Secret="yout-cluster-secret"
+    URL="ws://127.0.0.1:3000"
   ```
+  *If your ARK server is on antoher host make sure to edit the docker-compose.yml file to expose port 3000 (change `"127.0.0.1:3000:3000"` to `"3000:3000"` for the `api` `ports` section and re-deploy it using `docker compose up -d`)*
