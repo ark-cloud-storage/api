@@ -11,9 +11,9 @@ An example of the `docker-compose.yml` file is provided in the root of the proje
 - Edit the compose file and change the environment passwords to a secure value.
 - Edit the compose file to configure the clusters and secrets to create.
 - Start the database and the api with `docker-compose up -d db`.
-- Run the migrations with `docker-compose run --rm api npx prisma migrate deploy`.
+- Run the migrations with `docker-compose run --rm api npm migrate`.
 - Start the api with `docker-compose up -d api`.
-- Edit your GameUserSettings.ini file to point to the api:  
+- Edit your GameUserSettings.ini file to point to the api:
   ```
     [CloudStorage]
     ID=your-cluster-id
