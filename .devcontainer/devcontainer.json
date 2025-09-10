@@ -1,0 +1,16 @@
+{
+    "name": "Cloud Storage API",
+    "dockerComposeFile": "../docker-compose.yml",
+    "service": "api",
+    "forwardPorts": [
+        3000
+    ],
+    "runServices": [
+        "db"
+    ],
+    "customizations": {
+        "jetbrains": {
+            "backend": "WebStorm"
+        }
+    },
+}
