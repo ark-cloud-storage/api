@@ -15,6 +15,7 @@ async function bootstrap() {
         cors: {
             origin: process.env.CORS_ORIGIN || "*",
         },
+        moduleIdGeneratorAlgorithm: "deep-hash",
     });
 
     // Use ws adapter
