@@ -23,7 +23,7 @@
         "prepare": "husky"
     },
     "dependencies": {
-        "@nestjs/common": "~11.1.6",
+        "@nestjs/common": "~11.1.7",
         "@nestjs/config": "~4.0.2",
         "@nestjs/core": "~11.1.6",
         "@nestjs/event-emitter": "~3.0.1",
