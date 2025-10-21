@@ -54,7 +54,7 @@
         "@types/node": "~24.8.1",
         "@types/supertest": "~6.0.3",
         "@types/ws": "~8.18.1",
-        "@typescript-eslint/eslint-plugin": "~8.46.1",
+        "@typescript-eslint/eslint-plugin": "~8.46.2",
         "@typescript-eslint/parser": "~8.46.1",
         "commitlint": "~20.1.0",
         "eslint": "~9.38.0",
