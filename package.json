@@ -30,7 +30,7 @@
         "@nestjs/platform-express": "~11.1.6",
         "@nestjs/platform-ws": "~11.1.6",
         "@nestjs/websockets": "~11.1.6",
-        "@prisma/client": "~6.17.1",
+        "@prisma/client": "~6.18.0",
         "boolean": "~3.2.0",
         "class-transformer": "~0.5.1",
         "class-validator": "~0.14.2",
