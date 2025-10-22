@@ -10,5 +10,5 @@ updates:
       nestjs:
         applies-to: version-updates
         patterns:
-          - "@nestjs*"
+          - "@nestjs/*"
   
