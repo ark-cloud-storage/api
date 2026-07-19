@@ -30,7 +30,7 @@ module.exports = {
             {
                 dockerImage: "migrate",
                 dockerProject: "arkcloudstorage",
-                dockerBuildFlags: ["--target", "migrate"],
+                dockerBuildFlags: { target: "migrate" },
             },
         ],
     ],
