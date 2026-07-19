@@ -1,4 +1,4 @@
-# Build Image
+# Build Image (all deps, compiles TS, generates Prisma client)
 FROM node:lts-alpine AS build
 
 RUN apk add --no-cache git
@@ -17,11 +17,15 @@ RUN npx prisma generate
 COPY --chown=node:node ./src ./src
 COPY --chown=node:node ./tsconfig.json ./tsconfig.json
 COPY --chown=node:node ./tsconfig.build.json ./tsconfig.build.json
-RUN npm run build && \
-    npm prune --production
+RUN npm run build
 
-# Run Image
-FROM node:lts-alpine
+# Production-only dependency tree for the lean api image
+FROM build AS prune
+RUN npm prune --production
+
+# Migrate Image: retains the full dependency tree (Prisma CLI + engines),
+# migrations, and the compiled backfill script. One-shot; exits after running.
+FROM node:lts-alpine AS migrate
 
 ENV NODE_ENV=production
 
@@ -30,7 +34,22 @@ WORKDIR /home/node
 
 COPY --from=build --chown=node:node /home/node/package*.json ./
 COPY --from=build --chown=node:node /home/node/node_modules/ ./node_modules/
-COPY --from=build --chown=node:node /home/node/dist ./dist/
-COPY --from=build --chown=node:node /home/node/prisma ./prisma/
+COPY --from=build --chown=node:node /home/node/prisma/ ./prisma/
+COPY --from=build --chown=node:node /home/node/dist/ ./dist/
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/db/migrate-secrets.js"]
+
+# Run Image (api) — MUST remain the final stage so the default build targets it
+FROM node:lts-alpine AS api
+
+ENV NODE_ENV=production
+
+USER node
+WORKDIR /home/node
+
+COPY --from=prune --chown=node:node /home/node/package*.json ./
+COPY --from=prune --chown=node:node /home/node/node_modules/ ./node_modules/
+COPY --from=prune --chown=node:node /home/node/dist/ ./dist/
+COPY --from=prune --chown=node:node /home/node/prisma/ ./prisma/
 
 CMD ["node", "dist/main"]
