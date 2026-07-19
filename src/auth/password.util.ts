@@ -35,13 +35,9 @@ export function verifySecret(plain: string, stored: string): boolean {
         return false;
     }
     const expected = Buffer.from(keyHex, "hex");
-    const actual = scryptSync(
-        plain,
-        Buffer.from(saltHex, "hex"),
-        expected.length,
-    );
-    if (actual.length !== expected.length) {
+    if (expected.length !== KEY_LENGTH) {
         return false;
     }
+    const actual = scryptSync(plain, Buffer.from(saltHex, "hex"), KEY_LENGTH);
     return timingSafeEqual(actual, expected);
 }

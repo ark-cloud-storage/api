@@ -29,4 +29,14 @@ describe("password.util", () => {
             false,
         );
     });
+
+    it("rejects a scrypt-prefixed value with a malformed hash segment", () => {
+        expect(verifySecret("anything", "scrypt$deadbeef$not-hex-at-all")).toBe(
+            false,
+        );
+    });
+
+    it("rejects a scrypt-prefixed value with too few segments", () => {
+        expect(verifySecret("anything", "scrypt$onlyonepart")).toBe(false);
+    });
 });
