@@ -12,6 +12,7 @@ import { ClusterDto } from "../dto/cluster.dto";
 import { ConfigService } from "@nestjs/config";
 import { ALLOW_REGISTRATION, REGISTER_CLUSTERS } from "../constants";
 import { boolean } from "boolean";
+import { hashSecret, verifySecret } from "../password.util";
 
 /**
  * The authentication service that handles cluster registration and login
@@ -46,11 +47,18 @@ export class AuthService implements OnModuleInit {
         const clusters = clustersString.split(",");
         for (const cluster of clusters) {
             const [id, secret] = cluster.split(":");
+            const existing = await this.databaseService.cluster.findUnique({
+                where: { id },
+            });
+            if (existing && verifySecret(secret, existing.secret)) {
+                continue;
+            }
             this.logger.log(`Registering cluster ${id} from configuration`);
+            const hashed = hashSecret(secret);
             await this.databaseService.cluster.upsert({
                 where: { id },
-                update: { secret },
-                create: { id, secret },
+                update: { secret: hashed },
+                create: { id, secret: hashed },
             });
         }
     }
@@ -83,37 +91,31 @@ export class AuthService implements OnModuleInit {
 
         // Create a new cluster with a random secret
         const secret = randomBytes(50).toString("hex");
-        const cluster = await this.databaseService.cluster.create({
-            data: { id, secret },
+        await this.databaseService.cluster.create({
+            data: { id, secret: hashSecret(secret) },
         });
 
-        // Return the cluster DTO
-        return ClusterDto.fromDatabase(cluster);
+        // Return the plaintext secret once so the operator can configure the mod
+        return new ClusterDto(id, secret);
     }
 
     /**
      * Logs in a cluster with the given ID and secret
      * @param id The ID of the cluster
      * @param secret The secret of the cluster
-     * @returns The cluster DTO
+     * @returns The authenticated cluster id
      * @throws UnauthorizedException If the cluster is not found or the secret is invalid
-     * @throws Error If the database operation fails
      */
-    public async login(id: string, secret: string): Promise<ClusterDto> {
-        // Find the cluster by ID
-        const cluster = await this.databaseService.cluster.findFirst({
+    public async login(id: string, secret: string): Promise<string> {
+        const cluster = await this.databaseService.cluster.findUnique({
             where: { id },
         });
-
-        // Validate the cluster and secret
         if (!cluster) {
             throw new UnauthorizedException("Cluster not found");
         }
-        if (cluster.secret !== secret) {
+        if (!verifySecret(secret, cluster.secret)) {
             throw new UnauthorizedException("Invalid credentials");
         }
-
-        // Return the cluster DTO
-        return ClusterDto.fromDatabase(cluster);
+        return cluster.id;
     }
 }

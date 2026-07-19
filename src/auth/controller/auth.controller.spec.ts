@@ -1,19 +1,36 @@
-import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
-import { AppModule } from "../../app.module";
+import { ClusterDto } from "../dto/cluster.dto";
 
 describe("AuthController", () => {
-    let authController: AuthController;
+    function build() {
+        const authService = {
+            login: jest.fn(),
+            register: jest.fn(),
+        };
+        return {
+            controller: new AuthController(authService as any),
+            authService,
+        };
+    }
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            imports: [AppModule],
-        }).compile();
+    it("returns only the id on login, never the secret", async () => {
+        const { controller, authService } = build();
+        authService.login.mockResolvedValue("cluster-1");
 
-        authController = module.get<AuthController>(AuthController);
+        const result = await controller.login({ id: "cluster-1", secret: "s" });
+
+        expect(result).toEqual({ id: "cluster-1" });
+        expect("secret" in result).toBe(false);
     });
 
-    it("should be defined", () => {
-        expect(authController).toBeDefined();
+    it("returns the generated secret on register", async () => {
+        const { controller, authService } = build();
+        authService.register.mockResolvedValue(
+            new ClusterDto("cluster-1", "plaintext"),
+        );
+
+        const result = await controller.register({ id: "cluster-1" });
+
+        expect(result.secret).toBe("plaintext");
     });
 });
