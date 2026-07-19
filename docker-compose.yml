@@ -7,18 +7,36 @@ services:
     volumes:
       - data:/var/lib/mysql
     environment:
-      MYSQL_DATABASE: clouddb
-      MYSQL_ROOT_PASSWORD: your-db-password
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-clouddb}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: arkcloudstorage/migrate
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}@db:3306/${MYSQL_DATABASE:-clouddb}
+
   api:
     image: arkcloudstorage/api
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      DATABASE_URL: mysql://root:your-db-password@db:3306/clouddb
-      REGISTER_CLUSTERS: your-cluster-name:your-cluster-secret
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}@db:3306/${MYSQL_DATABASE:-clouddb}
+      REGISTER_CLUSTERS: ${REGISTER_CLUSTERS:-}
+
 volumes:
   data:
-
