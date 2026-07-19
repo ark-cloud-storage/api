@@ -2,12 +2,11 @@ import {
     CanActivate,
     ExecutionContext,
     Injectable,
-    SetMetadata,
     UnauthorizedException,
 } from "@nestjs/common";
 import { AuthService } from "../service/auth.service";
 import { Reflector } from "@nestjs/core";
-import { ALLOW_UNAUTHORIZED, CLUSTER_ID } from "../constants";
+import { ALLOW_UNAUTHORIZED } from "../constants";
 
 /**
  * The authentication guard that determines whether the request is authorized
@@ -42,20 +41,25 @@ export class AuthGuard implements CanActivate {
             return true;
         }
 
-        // Get cluster ID and secret from request headers
+        // Read credentials and capture the object to tag with the cluster id
         let id: string;
         let secret: string;
+        let target: { clusterId?: string };
         switch (context.getType()) {
-            case "http":
-                const httpRequest = context.switchToHttp().getRequest();
-                id = httpRequest.headers["x-cluster-id"];
-                secret = httpRequest.headers["x-cluster-secret"];
+            case "http": {
+                const req = context.switchToHttp().getRequest();
+                id = req.headers["x-cluster-id"];
+                secret = req.headers["x-cluster-secret"];
+                target = req;
                 break;
-            case "ws":
-                const wsRequest = context.switchToWs().getClient();
-                id = wsRequest.upgradeHeaders["x-cluster-id"];
-                secret = wsRequest.upgradeHeaders["x-cluster-secret"];
+            }
+            case "ws": {
+                const client = context.switchToWs().getClient();
+                id = client.upgradeHeaders["x-cluster-id"];
+                secret = client.upgradeHeaders["x-cluster-secret"];
+                target = client;
                 break;
+            }
             default:
                 throw new Error("Invalid context type");
         }
@@ -64,15 +68,11 @@ export class AuthGuard implements CanActivate {
         if (!id || !secret) {
             throw new UnauthorizedException();
         }
-        const authorized = await this.authService.login(id, secret);
-        if (!authorized) {
-            throw new UnauthorizedException();
-        }
+        await this.authService.login(id, secret);
 
-        // Set the cluster ID metadata to be used by the @ClusterId() decorator
-        SetMetadata(CLUSTER_ID, id)(context.getHandler());
+        // Tag the request/socket so @ClusterId() can read it per-request (race-free)
+        target.clusterId = id;
 
-        // Allow the request to proceed
         return true;
     }
 }
