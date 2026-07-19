@@ -1,4 +1,4 @@
-import { IsInt, IsString } from "class-validator";
+import { IsInt, IsString, Max, MaxLength, Min } from "class-validator";
 import { DedicatedStorage } from "@prisma/client";
 import { StorageDto } from "./storage.dto";
 
@@ -10,12 +10,15 @@ export class DedicatedStorageDto extends StorageDto<"dedicated"> {
      * The unique ID of the cluster
      */
     @IsString()
+    @MaxLength(500)
     resourceId: string;
 
     /**
      * The amount of the resource
      */
     @IsInt()
+    @Min(-1_000_000_000)
+    @Max(1_000_000_000)
     amount: number;
 
     /**

@@ -10,6 +10,7 @@ import { Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ClusterId } from "../../auth/decorator/cluster-id.decorator";
 import { AuthGuard } from "../../auth/gurad/auth.guard";
 import { StorageDto } from "../dto/storage.dto";
+import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { InventoryService } from "../service/inventory.service";
 import { WebSocket } from "ws";
 import { OnEvent } from "@nestjs/event-emitter";
@@ -18,7 +19,7 @@ import { OnEvent } from "@nestjs/event-emitter";
  * The inventory gateway that handles inventory updates
  */
 @WebSocketGateway({ path: "/inventory" })
-@UsePipes(ValidationPipe)
+@UsePipes(new ValidationPipe({ whitelist: true }))
 @UseGuards(AuthGuard)
 export class InventoryGateway
     implements OnGatewayConnection, OnGatewayDisconnect
@@ -118,7 +119,7 @@ export class InventoryGateway
     @SubscribeMessage("update")
     public async updateInventory(
         @ClusterId() clusterId: string,
-        @MessageBody() storage: StorageDto,
+        @MessageBody() storage: DedicatedStorageDto,
     ): Promise<void> {
         // update the inventory
         await this.inventoryService.updateInventory(clusterId, storage);

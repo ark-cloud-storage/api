@@ -22,7 +22,7 @@ async function bootstrap() {
     app.useWebSocketAdapter(new CustomWsAdapter(app));
 
     // Enable validation for all routes
-    app.useGlobalPipes(new ValidationPipe());
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
     // Enable authentication for all routes
     const authGuard = app.get(AuthGuard);

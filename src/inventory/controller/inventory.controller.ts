@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post } from "@nestjs/common";
 import { ClusterId } from "../../auth/decorator/cluster-id.decorator";
 import { StorageDto } from "../dto/storage.dto";
+import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { InventoryService } from "../service/inventory.service";
 
 /**
@@ -32,7 +33,7 @@ export class InventoryController {
     @Post()
     public async updateInventory(
         @ClusterId() clusterId: string,
-        @Body() storage: StorageDto,
+        @Body() storage: DedicatedStorageDto,
     ): Promise<void> {
         return this.inventoryService.updateInventory(clusterId, storage);
     }
