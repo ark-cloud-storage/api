@@ -9,6 +9,7 @@ import {
 import { Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ClusterId } from "../../auth/decorator/cluster-id.decorator";
 import { AuthGuard } from "../../auth/gurad/auth.guard";
+import { AuthService } from "../../auth/service/auth.service";
 import { StorageDto } from "../dto/storage.dto";
 import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { InventoryService } from "../service/inventory.service";
@@ -43,13 +44,32 @@ export class InventoryGateway
     /**
      * Initializes the inventory gateway
      * @param inventoryService The inventory service
+     * @param authService The authentication service
      */
-    public constructor(private readonly inventoryService: InventoryService) {}
+    public constructor(
+        private readonly inventoryService: InventoryService,
+        private readonly authService: AuthService,
+    ) {}
 
     /**
-     * Handles a new client connection
+     * Handles a new client connection, rejecting unauthenticated sockets.
      */
-    public async handleConnection(): Promise<void> {
+    public async handleConnection(
+        client: WebSocket & { upgradeHeaders?: Record<string, string> },
+    ): Promise<void> {
+        const headers = client.upgradeHeaders ?? {};
+        const id = headers["x-cluster-id"];
+        const secret = headers["x-cluster-secret"];
+        try {
+            if (!id || !secret) {
+                throw new Error("Missing credentials");
+            }
+            await this.authService.login(id, secret);
+        } catch {
+            this.logger.log("Rejecting unauthenticated client");
+            client.close(1008, "Unauthorized");
+            return;
+        }
         this.logger.log("Client connected");
     }
 

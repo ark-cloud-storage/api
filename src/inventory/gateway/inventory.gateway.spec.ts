@@ -1,19 +1,41 @@
-import { Test, TestingModule } from "@nestjs/testing";
 import { InventoryGateway } from "./inventory.gateway";
-import { AppModule } from "../../app.module";
 
-describe("InventoryGateway", () => {
-    let gateway: InventoryGateway;
+describe("InventoryGateway.handleConnection", () => {
+    function build(login: any = jest.fn()) {
+        const inventoryService = {} as any;
+        const authService = { login };
+        return {
+            gateway: new InventoryGateway(inventoryService, authService as any),
+            authService,
+        };
+    }
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            imports: [AppModule],
-        }).compile();
-
-        gateway = module.get<InventoryGateway>(InventoryGateway);
+    it("closes the socket when credentials are missing", async () => {
+        const { gateway } = build();
+        const client: any = { upgradeHeaders: {}, close: jest.fn() };
+        await gateway.handleConnection(client);
+        expect(client.close).toHaveBeenCalledWith(1008, "Unauthorized");
     });
 
-    it("should be defined", () => {
-        expect(gateway).toBeDefined();
+    it("closes the socket when credentials are invalid", async () => {
+        const { gateway } = build(
+            jest.fn().mockRejectedValue(new Error("bad")),
+        );
+        const client: any = {
+            upgradeHeaders: { "x-cluster-id": "c1", "x-cluster-secret": "bad" },
+            close: jest.fn(),
+        };
+        await gateway.handleConnection(client);
+        expect(client.close).toHaveBeenCalledWith(1008, "Unauthorized");
+    });
+
+    it("keeps a valid client connected", async () => {
+        const { gateway } = build(jest.fn().mockResolvedValue("c1"));
+        const client: any = {
+            upgradeHeaders: { "x-cluster-id": "c1", "x-cluster-secret": "s" },
+            close: jest.fn(),
+        };
+        await gateway.handleConnection(client);
+        expect(client.close).not.toHaveBeenCalled();
     });
 });
