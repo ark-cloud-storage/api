@@ -1,4 +1,9 @@
-import { hashSecret, isHashed, verifySecret } from "./password.util";
+import {
+    hashSecret,
+    isHashed,
+    verifySecret,
+    verifySecretAsync,
+} from "./password.util";
 
 describe("password.util", () => {
     it("hashes into the scrypt$salt$hash format", () => {
@@ -38,5 +43,40 @@ describe("password.util", () => {
 
     it("rejects a scrypt-prefixed value with too few segments", () => {
         expect(verifySecret("anything", "scrypt$onlyonepart")).toBe(false);
+    });
+
+    it("async-verifies a correct secret", async () => {
+        expect(await verifySecretAsync("s3cret", hashSecret("s3cret"))).toBe(
+            true,
+        );
+    });
+
+    it("async-rejects an incorrect secret", async () => {
+        expect(await verifySecretAsync("wrong", hashSecret("s3cret"))).toBe(
+            false,
+        );
+    });
+
+    it("async-rejects a non-hashed stored value", async () => {
+        expect(await verifySecretAsync("plaintext", "plaintext")).toBe(false);
+    });
+
+    it("async-rejects a scrypt-prefixed value with a malformed hash segment", async () => {
+        expect(
+            await verifySecretAsync(
+                "anything",
+                "scrypt$deadbeef$not-hex-at-all",
+            ),
+        ).toBe(false);
+    });
+
+    it("async and sync verify agree for the same inputs", async () => {
+        const hash = hashSecret("agree-me");
+        expect(await verifySecretAsync("agree-me", hash)).toBe(
+            verifySecret("agree-me", hash),
+        );
+        expect(await verifySecretAsync("nope", hash)).toBe(
+            verifySecret("nope", hash),
+        );
     });
 });
