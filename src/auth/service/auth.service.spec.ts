@@ -13,8 +13,9 @@ function buildService(configValues: Record<string, unknown> = {}) {
         },
     };
     const config = { get: jest.fn((key: string) => configValues[key]) };
-    const service = new AuthService(db as any, config as any);
-    return { service, db, config };
+    const cache = { isValid: jest.fn().mockReturnValue(false), set: jest.fn() };
+    const service = new AuthService(db as any, config as any, cache as any);
+    return { service, db, config, cache };
 }
 
 describe("AuthService", () => {
@@ -31,8 +32,8 @@ describe("AuthService", () => {
         expect(dto.secret.startsWith("scrypt$")).toBe(false);
     });
 
-    it("logs in with a correct secret and returns the cluster id", async () => {
-        const { service, db } = buildService();
+    it("logs in with a correct secret, verifies, and caches", async () => {
+        const { service, db, cache } = buildService();
         db.cluster.findUnique.mockResolvedValue({
             id: "cluster-1",
             secret: hashSecret("good-secret"),
@@ -41,10 +42,21 @@ describe("AuthService", () => {
         await expect(service.login("cluster-1", "good-secret")).resolves.toBe(
             "cluster-1",
         );
+        expect(cache.set).toHaveBeenCalledTimes(1);
     });
 
-    it("rejects a wrong secret", async () => {
-        const { service, db } = buildService();
+    it("skips the DB and verification on a cache hit", async () => {
+        const { service, db, cache } = buildService();
+        cache.isValid.mockReturnValue(true);
+
+        await expect(service.login("cluster-1", "anything")).resolves.toBe(
+            "cluster-1",
+        );
+        expect(db.cluster.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("does not cache a wrong secret", async () => {
+        const { service, db, cache } = buildService();
         db.cluster.findUnique.mockResolvedValue({
             id: "cluster-1",
             secret: hashSecret("good-secret"),
@@ -53,6 +65,7 @@ describe("AuthService", () => {
         await expect(
             service.login("cluster-1", "bad-secret"),
         ).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(cache.set).not.toHaveBeenCalled();
     });
 
     it("rejects an unknown cluster", async () => {

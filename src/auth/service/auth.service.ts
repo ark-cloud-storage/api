@@ -7,12 +7,13 @@ import {
     UnauthorizedException,
 } from "@nestjs/common";
 import { DatabaseService } from "../../database/service/database.service";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { ClusterDto } from "../dto/cluster.dto";
 import { ConfigService } from "@nestjs/config";
 import { ALLOW_REGISTRATION, REGISTER_CLUSTERS } from "../constants";
 import { boolean } from "boolean";
-import { hashSecret, verifySecret } from "../password.util";
+import { hashSecret, verifySecret, verifySecretAsync } from "../password.util";
+import { AuthCacheService } from "./auth-cache.service";
 
 /**
  * The authentication service that handles cluster registration and login
@@ -29,10 +30,12 @@ export class AuthService implements OnModuleInit {
      * Initializes the authentication service
      * @param databaseService The database service
      * @param configService The configuration service
+     * @param authCache The auth verification cache
      */
     public constructor(
         private readonly databaseService: DatabaseService,
         private readonly configService: ConfigService,
+        private readonly authCache: AuthCacheService,
     ) {}
 
     public async onModuleInit(): Promise<void> {
@@ -100,22 +103,30 @@ export class AuthService implements OnModuleInit {
     }
 
     /**
-     * Logs in a cluster with the given ID and secret
-     * @param id The ID of the cluster
-     * @param secret The secret of the cluster
-     * @returns The authenticated cluster id
-     * @throws UnauthorizedException If the cluster is not found or the secret is invalid
+     * Logs in a cluster with the given ID and secret.
+     * Returns immediately on a cached successful verification; otherwise
+     * verifies against the stored scrypt hash and caches the success.
+     * @throws UnauthorizedException If the cluster is unknown or the secret is invalid
      */
     public async login(id: string, secret: string): Promise<string> {
+        const cacheKey = `${id}:${createHash("sha256")
+            .update(secret)
+            .digest("hex")}`;
+        if (this.authCache.isValid(cacheKey)) {
+            return id;
+        }
+
         const cluster = await this.databaseService.cluster.findUnique({
             where: { id },
         });
         if (!cluster) {
             throw new UnauthorizedException("Cluster not found");
         }
-        if (!verifySecret(secret, cluster.secret)) {
+        if (!(await verifySecretAsync(secret, cluster.secret))) {
             throw new UnauthorizedException("Invalid credentials");
         }
+
+        this.authCache.set(cacheKey);
         return cluster.id;
     }
 }
