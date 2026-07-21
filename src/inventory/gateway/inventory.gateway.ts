@@ -14,9 +14,13 @@ import {
     ValidationPipe,
 } from "@nestjs/common";
 import { ThrottlerStorage } from "@nestjs/throttler";
+import { ConfigService } from "@nestjs/config";
+import { boolean } from "boolean";
 import { ClusterId } from "../../auth/decorator/cluster-id.decorator";
 import { AuthGuard } from "../../auth/gurad/auth.guard";
 import { AuthService } from "../../auth/service/auth.service";
+import { TRUST_PROXY } from "../../auth/constants";
+import { resolveWsClientIp } from "../../lib/client-ip.util";
 import { StorageDto } from "../dto/storage.dto";
 import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { InventoryService } from "../service/inventory.service";
@@ -51,19 +55,29 @@ export class InventoryGateway
      * @private
      */
     private readonly clientClusters = new Map<WebSocket, string>();
+    /**
+     * Whether the API runs behind a single trusted reverse proxy, in which
+     * case the rightmost X-Forwarded-For entry is trusted as the client IP
+     * @private
+     */
+    private readonly trustProxy: boolean;
 
     /**
      * Initializes the inventory gateway
      * @param inventoryService The inventory service
      * @param authService The authentication service
      * @param throttlerStorage The throttler storage used to rate-limit connect attempts
+     * @param configService The configuration service used to read TRUST_PROXY
      */
     public constructor(
         private readonly inventoryService: InventoryService,
         private readonly authService: AuthService,
         @Inject(ThrottlerStorage)
         private readonly throttlerStorage: ThrottlerStorage,
-    ) {}
+        private readonly configService: ConfigService,
+    ) {
+        this.trustProxy = boolean(this.configService.get(TRUST_PROXY));
+    }
 
     /**
      * Handles a new client connection: rate-limits connect attempts per IP
@@ -76,7 +90,11 @@ export class InventoryGateway
             remoteAddress?: string;
         },
     ): Promise<void> {
-        const ip = client.remoteAddress ?? "unknown";
+        const ip = resolveWsClientIp(
+            client.remoteAddress,
+            client.upgradeHeaders?.["x-forwarded-for"],
+            this.trustProxy,
+        );
         const record = await this.throttlerStorage.increment(
             `ws-connect:${ip}`,
             WS_CONNECT_TTL_MS,
@@ -87,6 +105,7 @@ export class InventoryGateway
         if (record.isBlocked) {
             this.logger.log(`Rate-limiting connections from ${ip}`);
             client.close(1008, "Too Many Requests");
+            client.terminate();
             return;
         }
 
@@ -101,6 +120,7 @@ export class InventoryGateway
         } catch {
             this.logger.log("Rejecting unauthenticated client");
             client.close(1008, "Unauthorized");
+            client.terminate();
             return;
         }
         this.logger.log("Client connected");

@@ -38,6 +38,7 @@ services:
       DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}@db:3306/${MYSQL_DATABASE:-clouddb}
       REGISTER_CLUSTERS: ${REGISTER_CLUSTERS:-}
       AUTH_CACHE_SECONDS: ${AUTH_CACHE_SECONDS:-300}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
 
 volumes:
   data:
