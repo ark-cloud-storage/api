@@ -6,7 +6,14 @@ import {
     SubscribeMessage,
     WebSocketGateway,
 } from "@nestjs/websockets";
-import { Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
+import {
+    Inject,
+    Logger,
+    UseGuards,
+    UsePipes,
+    ValidationPipe,
+} from "@nestjs/common";
+import { ThrottlerStorage } from "@nestjs/throttler";
 import { ClusterId } from "../../auth/decorator/cluster-id.decorator";
 import { AuthGuard } from "../../auth/gurad/auth.guard";
 import { AuthService } from "../../auth/service/auth.service";
@@ -15,6 +22,10 @@ import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { InventoryService } from "../service/inventory.service";
 import { WebSocket } from "ws";
 import { OnEvent } from "@nestjs/event-emitter";
+
+const WS_CONNECT_TTL_MS = 60_000;
+const WS_CONNECT_LIMIT = 5;
+const WS_CONNECT_BLOCK_MS = 60_000;
 
 /**
  * The inventory gateway that handles inventory updates
@@ -45,18 +56,40 @@ export class InventoryGateway
      * Initializes the inventory gateway
      * @param inventoryService The inventory service
      * @param authService The authentication service
+     * @param throttlerStorage The throttler storage used to rate-limit connect attempts
      */
     public constructor(
         private readonly inventoryService: InventoryService,
         private readonly authService: AuthService,
+        @Inject(ThrottlerStorage)
+        private readonly throttlerStorage: ThrottlerStorage,
     ) {}
 
     /**
-     * Handles a new client connection, rejecting unauthenticated sockets.
+     * Handles a new client connection: rate-limits connect attempts per IP
+     * (before any auth work, so brute-force attempts are rejected before a
+     * scrypt is spent), then rejects unauthenticated sockets.
      */
     public async handleConnection(
-        client: WebSocket & { upgradeHeaders?: Record<string, string> },
+        client: WebSocket & {
+            upgradeHeaders?: Record<string, string>;
+            remoteAddress?: string;
+        },
     ): Promise<void> {
+        const ip = client.remoteAddress ?? "unknown";
+        const record = await this.throttlerStorage.increment(
+            `ws-connect:${ip}`,
+            WS_CONNECT_TTL_MS,
+            WS_CONNECT_LIMIT,
+            WS_CONNECT_BLOCK_MS,
+            "ws-connect",
+        );
+        if (record.isBlocked) {
+            this.logger.log(`Rate-limiting connections from ${ip}`);
+            client.close(1008, "Too Many Requests");
+            return;
+        }
+
         const headers = client.upgradeHeaders ?? {};
         const id = headers["x-cluster-id"];
         const secret = headers["x-cluster-secret"];
