@@ -89,4 +89,24 @@ describe("AuthService", () => {
         expect(upsertArg.create.secret.startsWith("scrypt$")).toBe(true);
         expect(upsertArg.update.secret.startsWith("scrypt$")).toBe(true);
     });
+
+    it("does not let a cached entry authenticate a different secret", async () => {
+        const { service, db, cache } = buildService();
+        // First secret verifies and is cached.
+        const store = new Set<string>();
+        cache.isValid.mockImplementation((k: string) => store.has(k));
+        cache.set.mockImplementation((k: string) => store.add(k));
+        db.cluster.findUnique.mockResolvedValue({
+            id: "cluster-1",
+            secret: hashSecret("right-secret"),
+        });
+
+        await expect(service.login("cluster-1", "right-secret")).resolves.toBe(
+            "cluster-1",
+        );
+        // A different secret for the same id must NOT hit the cache — it must verify (and fail).
+        await expect(
+            service.login("cluster-1", "other-secret"),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
 });

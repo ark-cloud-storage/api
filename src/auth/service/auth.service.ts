@@ -7,7 +7,7 @@ import {
     UnauthorizedException,
 } from "@nestjs/common";
 import { DatabaseService } from "../../database/service/database.service";
-import { createHash, randomBytes } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 import { ClusterDto } from "../dto/cluster.dto";
 import { ConfigService } from "@nestjs/config";
 import { ALLOW_REGISTRATION, REGISTER_CLUSTERS } from "../constants";
@@ -25,6 +25,15 @@ export class AuthService implements OnModuleInit {
      * @private
      */
     private readonly logger = new Logger(AuthService.name);
+
+    /**
+     * Per-process random key for deriving auth-cache keys. Regenerated every
+     * boot (the cache is in-memory and does not survive a restart), so a heap
+     * dump exposes only HMACs under an ephemeral key, not crackable secret
+     * digests.
+     * @private
+     */
+    private readonly cacheKeyHmacKey = randomBytes(32);
 
     /**
      * Initializes the authentication service
@@ -106,10 +115,13 @@ export class AuthService implements OnModuleInit {
      * Logs in a cluster with the given ID and secret.
      * Returns immediately on a cached successful verification; otherwise
      * verifies against the stored scrypt hash and caches the success.
+     * @param id The ID of the cluster
+     * @param secret The secret of the cluster
+     * @returns The authenticated cluster id
      * @throws UnauthorizedException If the cluster is unknown or the secret is invalid
      */
     public async login(id: string, secret: string): Promise<string> {
-        const cacheKey = `${id}:${createHash("sha256")
+        const cacheKey = `${id}:${createHmac("sha256", this.cacheKeyHmacKey)
             .update(secret)
             .digest("hex")}`;
         if (this.authCache.isValid(cacheKey)) {
