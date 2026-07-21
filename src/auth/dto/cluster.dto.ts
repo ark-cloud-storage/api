@@ -1,5 +1,4 @@
 import { IsString } from "class-validator";
-import { Cluster } from "@prisma/client";
 
 /**
  * Cluster data transfer object with ID and secret
@@ -25,14 +24,5 @@ export class ClusterDto {
     public constructor(id: string, secret: string) {
         this.id = id;
         this.secret = secret;
-    }
-
-    /**
-     * Converts a cluster from the database to a cluster DTO
-     * @param cluster The cluster from the database
-     * @returns The cluster DTO
-     */
-    public static fromDatabase(cluster: Cluster): ClusterDto {
-        return new ClusterDto(cluster.id, cluster.secret);
     }
 }
