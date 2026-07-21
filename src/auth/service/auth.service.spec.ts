@@ -108,5 +108,12 @@ describe("AuthService", () => {
         await expect(
             service.login("cluster-1", "other-secret"),
         ).rejects.toBeInstanceOf(UnauthorizedException);
+        // A different id with a known-good secret must NOT hit the cache either
+        // (the key binds the id, not just the secret) — it must verify against
+        // that id's own row, which here does not exist.
+        db.cluster.findUnique.mockResolvedValueOnce(null);
+        await expect(
+            service.login("other-id", "right-secret"),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 });
