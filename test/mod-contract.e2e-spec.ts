@@ -40,8 +40,8 @@ describe("Mod contract (e2e)", () => {
         // need no validation to pass, and each branch's gateway applies its own
         // class-level pipe for WS — so omitting it keeps this suite faithful and
         // green on both branches.
-        await app.init();
         app.useGlobalGuards(app.get(AuthGuard));
+        await app.init();
         await app.listen(0);
         port = (app.getHttpServer().address() as AddressInfo).port;
     });
@@ -111,5 +111,146 @@ describe("Mod contract (e2e)", () => {
     it("accepts an authenticated WebSocket connection", async () => {
         const socket = await open();
         expect(socket).toBeDefined();
+    });
+
+    it("sends current inventory as an update burst on subscribe", async () => {
+        await post({
+            type: "dedicated",
+            ownerId: 1,
+            resourceId: "wood",
+            amount: 3,
+        });
+
+        const socket = await open();
+        socket.send({ event: "subscribe" });
+
+        expect(await socket.nextMessage()).toEqual({
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 1,
+                resourceId: "wood",
+                amount: 3,
+            },
+        });
+    });
+
+    it("broadcasts an update back to a subscribed socket", async () => {
+        const socket = await open();
+        socket.send({ event: "subscribe" });
+        socket.send({
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 2,
+                resourceId: "metal",
+                amount: 4,
+            },
+        });
+
+        expect(await socket.nextMessage()).toEqual({
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 2,
+                resourceId: "metal",
+                amount: 4,
+            },
+        });
+    });
+
+    it("broadcasts a cluster update to every subscribed socket", async () => {
+        await post({
+            type: "dedicated",
+            ownerId: 1,
+            resourceId: "wood",
+            amount: 1,
+        });
+        const burst = {
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 1,
+                resourceId: "wood",
+                amount: 1,
+            },
+        };
+
+        const a = await open();
+        a.send({ event: "subscribe" });
+        expect(await a.nextMessage()).toEqual(burst);
+
+        const b = await open();
+        b.send({ event: "subscribe" });
+        expect(await b.nextMessage()).toEqual(burst);
+
+        a.send({
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 3,
+                resourceId: "fiber",
+                amount: 2,
+            },
+        });
+        const broadcast = {
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 3,
+                resourceId: "fiber",
+                amount: 2,
+            },
+        };
+        expect(await a.nextMessage()).toEqual(broadcast);
+        expect(await b.nextMessage()).toEqual(broadcast);
+    });
+
+    it("stops delivering updates to a socket after it unsubscribes", async () => {
+        await post({
+            type: "dedicated",
+            ownerId: 1,
+            resourceId: "wood",
+            amount: 1,
+        });
+        const burst = {
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 1,
+                resourceId: "wood",
+                amount: 1,
+            },
+        };
+
+        const a = await open();
+        a.send({ event: "subscribe" });
+        expect(await a.nextMessage()).toEqual(burst);
+
+        const b = await open();
+        b.send({ event: "subscribe" });
+        expect(await b.nextMessage()).toEqual(burst);
+
+        a.send({ event: "unsubscribe" });
+        a.send({
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 4,
+                resourceId: "hide",
+                amount: 6,
+            },
+        });
+
+        expect(await b.nextMessage()).toEqual({
+            event: "update",
+            data: {
+                type: "dedicated",
+                ownerId: 4,
+                resourceId: "hide",
+                amount: 6,
+            },
+        });
+        await a.expectNoMessage(300);
     });
 });
