@@ -7,13 +7,19 @@ import { DatabaseModule } from "../database/database.module";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ConfigModule } from "@nestjs/config";
 import { InventoryStore } from "./store/inventory.store";
+import { InventoryFlushService } from "./flush/inventory-flush.service";
 
 /**
  * The inventory module that provides the inventory service, gateway, and controller
  */
 @Module({
     imports: [AuthModule, DatabaseModule, EventEmitterModule, ConfigModule],
-    providers: [InventoryService, InventoryGateway, InventoryStore],
+    providers: [
+        InventoryService,
+        InventoryGateway,
+        InventoryStore,
+        InventoryFlushService,
+    ],
     controllers: [InventoryController],
 })
 export class InventoryModule {}
