@@ -36,6 +36,9 @@ async function bootstrap() {
     const authGuard = app.get(AuthGuard);
     app.useGlobalGuards(authGuard);
 
+    // Flush pending inventory writes on graceful shutdown (SIGTERM/SIGINT)
+    app.enableShutdownHooks();
+
     const port = process.env.PORT || 3000;
     await app.listen(port);
     Logger.log(`Server running on http://localhost:${port}`, "Bootstrap");

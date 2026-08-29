@@ -74,17 +74,14 @@ export function createInMemoryDatabase() {
                     };
                 };
                 create: StorageRow;
-                update: { amount: { increment: number } };
+                update: { amount: number };
             }) {
                 const { clusterId, ownerId, resourceId } =
                     where.clusterId_ownerId_resourceId;
                 const key = storageKey(clusterId, ownerId, resourceId);
                 const existing = storage.get(key);
                 const row: StorageRow = existing
-                    ? {
-                          ...existing,
-                          amount: existing.amount + update.amount.increment,
-                      }
+                    ? { ...existing, amount: update.amount }
                     : {
                           clusterId: create.clusterId,
                           ownerId: create.ownerId,
@@ -94,6 +91,9 @@ export function createInMemoryDatabase() {
                 storage.set(key, row);
                 return row;
             },
+        },
+        async $transaction(operations: Promise<unknown>[]) {
+            return Promise.all(operations);
         },
     };
 }
