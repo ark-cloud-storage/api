@@ -3,6 +3,9 @@ import { DatabaseService } from "../../database/service/database.service";
 import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { StorageDto } from "../dto/storage.dto";
 
+const INT_MIN = -2_147_483_648;
+const INT_MAX = 2_147_483_647;
+
 interface Entry {
     ownerId: number;
     resourceId: string;
@@ -96,5 +99,93 @@ export class InventoryStore {
 
     private key(ownerId: number, resourceId: string): string {
         return `${ownerId}\u0000${resourceId}`;
+    }
+
+    /**
+     * Applies a delta to the in-memory total, clamped to the Int range, bumps
+     * the entry version and marks it dirty. The caller must have ensureLoaded
+     * the cluster first.
+     */
+    public applyDelta(
+        clusterId: string,
+        ownerId: number,
+        resourceId: string,
+        delta: number,
+    ): number {
+        let map = this.clusters.get(clusterId);
+        if (!map) {
+            map = new Map<string, Entry>();
+            this.clusters.set(clusterId, map);
+        }
+        const key = this.key(ownerId, resourceId);
+        const entry: Entry = map.get(key) ?? {
+            ownerId,
+            resourceId,
+            value: 0,
+            version: 0,
+            dirty: false,
+        };
+        const raw = entry.value + delta;
+        const clamped = this.clamp(raw);
+        if (clamped !== raw) {
+            this.logger.warn(
+                `Clamped amount for ${clusterId}/${ownerId}/${resourceId}`,
+            );
+        }
+        entry.value = clamped;
+        entry.version += 1;
+        entry.dirty = true;
+        map.set(key, entry);
+        return entry.value;
+    }
+
+    /**
+     * Synchronously collects dirty entries for a flush, up to maxBatch.
+     */
+    public takeDirtySnapshot(maxBatch?: number): DirtyRef[] {
+        const refs: DirtyRef[] = [];
+        for (const [clusterId, map] of this.clusters) {
+            for (const entry of map.values()) {
+                if (!entry.dirty) {
+                    continue;
+                }
+                refs.push({
+                    clusterId,
+                    ownerId: entry.ownerId,
+                    resourceId: entry.resourceId,
+                    value: entry.value,
+                    version: entry.version,
+                });
+                if (maxBatch !== undefined && refs.length >= maxBatch) {
+                    return refs;
+                }
+            }
+        }
+        return refs;
+    }
+
+    /**
+     * Clears the dirty flag for entries unchanged since the snapshot. Entries
+     * whose version has moved on stay dirty for the next flush.
+     */
+    public clearDirty(refs: DirtyRef[]): void {
+        for (const ref of refs) {
+            const entry = this.clusters
+                .get(ref.clusterId)
+                ?.get(this.key(ref.ownerId, ref.resourceId));
+            if (entry && entry.version === ref.version) {
+                entry.dirty = false;
+            }
+        }
+    }
+
+    private clamp(value: number): number {
+        if (value > INT_MAX) {
+            return INT_MAX;
+        }
+        if (value < INT_MIN) {
+            return INT_MIN;
+        }
+        return value;
     }
 }
