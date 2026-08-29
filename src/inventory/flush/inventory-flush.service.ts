@@ -29,20 +29,23 @@ export class InventoryFlushService
         private readonly databaseService: DatabaseService,
         private readonly configService: ConfigService,
     ) {
-        const rawBatch = this.configService.get<string>(
-            "INVENTORY_FLUSH_MAX_BATCH",
+        this.maxBatch = InventoryFlushService.parsePositiveInt(
+            this.configService.get<string>("INVENTORY_FLUSH_MAX_BATCH"),
         );
-        const parsedBatch = rawBatch !== undefined ? Number(rawBatch) : NaN;
-        this.maxBatch = Number.isFinite(parsedBatch) ? parsedBatch : undefined;
+        this.intervalMs =
+            InventoryFlushService.parsePositiveInt(
+                this.configService.get<string>("INVENTORY_FLUSH_INTERVAL_MS"),
+            ) ?? 500;
+    }
 
-        const rawInterval = this.configService.get<string>(
-            "INVENTORY_FLUSH_INTERVAL_MS",
-        );
-        const parsedInterval =
-            rawInterval !== undefined ? Number(rawInterval) : NaN;
-        this.intervalMs = Number.isFinite(parsedInterval)
-            ? parsedInterval
-            : 500;
+    private static parsePositiveInt(
+        raw: string | undefined,
+    ): number | undefined {
+        if (raw === undefined) {
+            return undefined;
+        }
+        const parsed = Number(raw);
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
     }
 
     public onApplicationBootstrap(): void {

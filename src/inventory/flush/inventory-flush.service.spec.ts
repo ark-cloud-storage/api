@@ -150,3 +150,81 @@ describe("InventoryFlushService — lifecycle & backoff", () => {
         expect(flushSpy).toHaveBeenCalledTimes(1); // no further ticks
     });
 });
+
+describe("InventoryFlushService — config parsing", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it("falls back to a 500ms interval when INVENTORY_FLUSH_INTERVAL_MS is '0'", async () => {
+        const badIntervalConfig = {
+            get: jest.fn((key: string) =>
+                key === "INVENTORY_FLUSH_INTERVAL_MS" ? "0" : undefined,
+            ),
+        } as unknown as ConfigService;
+        const db = {
+            dedicatedStorage: { upsert: jest.fn() },
+            $transaction: jest.fn(),
+        } as unknown as DatabaseService;
+        const store = {
+            takeDirtySnapshot: jest.fn().mockReturnValue([]),
+            clearDirty: jest.fn(),
+        } as unknown as InventoryStore;
+
+        const service = new InventoryFlushService(store, db, badIntervalConfig);
+        const flushSpy = jest.spyOn(service, "flush").mockResolvedValue();
+
+        service.onApplicationBootstrap();
+
+        await jest.advanceTimersByTimeAsync(100);
+        expect(flushSpy).not.toHaveBeenCalled();
+
+        await jest.advanceTimersByTimeAsync(400);
+        expect(flushSpy).toHaveBeenCalledTimes(1);
+
+        await service.onModuleDestroy();
+    });
+
+    it("applies no batch cap when INVENTORY_FLUSH_MAX_BATCH is an empty string", async () => {
+        const badBatchConfig = {
+            get: jest.fn((key: string) =>
+                key === "INVENTORY_FLUSH_MAX_BATCH" ? "" : undefined,
+            ),
+        } as unknown as ConfigService;
+        const db = {
+            dedicatedStorage: { upsert: jest.fn() },
+            $transaction: jest.fn(),
+        } as unknown as DatabaseService;
+        const takeDirtySnapshot = jest.fn().mockReturnValue([]);
+        const store = {
+            takeDirtySnapshot,
+            clearDirty: jest.fn(),
+        } as unknown as InventoryStore;
+
+        const service = new InventoryFlushService(store, db, badBatchConfig);
+        await service.flush();
+
+        expect(takeDirtySnapshot).toHaveBeenCalledWith(undefined);
+    });
+
+    it("honors a valid INVENTORY_FLUSH_MAX_BATCH value", async () => {
+        const validBatchConfig = {
+            get: jest.fn((key: string) =>
+                key === "INVENTORY_FLUSH_MAX_BATCH" ? "2" : undefined,
+            ),
+        } as unknown as ConfigService;
+        const db = {
+            dedicatedStorage: { upsert: jest.fn() },
+            $transaction: jest.fn(),
+        } as unknown as DatabaseService;
+        const takeDirtySnapshot = jest.fn().mockReturnValue([]);
+        const store = {
+            takeDirtySnapshot,
+            clearDirty: jest.fn(),
+        } as unknown as InventoryStore;
+
+        const service = new InventoryFlushService(store, db, validBatchConfig);
+        await service.flush();
+
+        expect(takeDirtySnapshot).toHaveBeenCalledWith(2);
+    });
+});
