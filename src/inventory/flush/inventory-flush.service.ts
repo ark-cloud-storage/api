@@ -1,4 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+    Injectable,
+    Logger,
+    OnApplicationBootstrap,
+    OnModuleDestroy,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DatabaseService } from "../../database/service/database.service";
 import { InventoryStore } from "../store/inventory.store";
@@ -8,18 +13,77 @@ import { InventoryStore } from "../store/inventory.store";
  * transactions. Writes absolute amounts, so a retried flush is idempotent.
  */
 @Injectable()
-export class InventoryFlushService {
+export class InventoryFlushService
+    implements OnApplicationBootstrap, OnModuleDestroy
+{
     private readonly logger = new Logger(InventoryFlushService.name);
     private readonly maxBatch?: number;
+    private readonly intervalMs: number;
+    private static readonly MAX_BACKOFF_MS = 10_000;
+    private backoffMs = 0;
+    private stopped = false;
+    private timer?: ReturnType<typeof setTimeout>;
 
     public constructor(
         private readonly store: InventoryStore,
         private readonly databaseService: DatabaseService,
         private readonly configService: ConfigService,
     ) {
-        const raw = this.configService.get<string>("INVENTORY_FLUSH_MAX_BATCH");
-        const parsed = raw !== undefined ? Number(raw) : NaN;
-        this.maxBatch = Number.isFinite(parsed) ? parsed : undefined;
+        const rawBatch = this.configService.get<string>(
+            "INVENTORY_FLUSH_MAX_BATCH",
+        );
+        const parsedBatch = rawBatch !== undefined ? Number(rawBatch) : NaN;
+        this.maxBatch = Number.isFinite(parsedBatch) ? parsedBatch : undefined;
+
+        const rawInterval = this.configService.get<string>(
+            "INVENTORY_FLUSH_INTERVAL_MS",
+        );
+        const parsedInterval =
+            rawInterval !== undefined ? Number(rawInterval) : NaN;
+        this.intervalMs = Number.isFinite(parsedInterval)
+            ? parsedInterval
+            : 500;
+    }
+
+    public onApplicationBootstrap(): void {
+        this.scheduleNext(this.intervalMs);
+    }
+
+    public async onModuleDestroy(): Promise<void> {
+        this.stopped = true;
+        if (this.timer) {
+            clearTimeout(this.timer);
+        }
+        try {
+            await this.flush();
+        } catch (error) {
+            this.logger.error("Final flush on shutdown failed", error as Error);
+        }
+    }
+
+    private scheduleNext(delay: number): void {
+        if (this.stopped) {
+            return;
+        }
+        this.timer = setTimeout(() => void this.tick(), delay);
+    }
+
+    private async tick(): Promise<void> {
+        try {
+            await this.flush();
+            this.backoffMs = 0;
+        } catch (error) {
+            this.backoffMs = Math.min(
+                this.backoffMs === 0 ? this.intervalMs : this.backoffMs * 2,
+                InventoryFlushService.MAX_BACKOFF_MS,
+            );
+            this.logger.error(
+                `Flush failed, retrying in ${this.backoffMs}ms`,
+                error as Error,
+            );
+        } finally {
+            this.scheduleNext(this.backoffMs || this.intervalMs);
+        }
     }
 
     /**

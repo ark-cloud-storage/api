@@ -95,3 +95,58 @@ describe("InventoryFlushService — flush()", () => {
         expect(store.clearDirty).not.toHaveBeenCalled();
     });
 });
+
+describe("InventoryFlushService — lifecycle & backoff", () => {
+    const makeService = () => {
+        const db = {
+            dedicatedStorage: { upsert: jest.fn() },
+            $transaction: jest.fn(),
+        } as unknown as DatabaseService;
+        const store = {
+            takeDirtySnapshot: jest.fn().mockReturnValue([]),
+            clearDirty: jest.fn(),
+        } as unknown as InventoryStore;
+        return new InventoryFlushService(store, db, config);
+    };
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it("flushes on the configured interval", async () => {
+        const service = makeService();
+        const flushSpy = jest.spyOn(service, "flush").mockResolvedValue();
+
+        service.onApplicationBootstrap();
+        await jest.advanceTimersByTimeAsync(500);
+
+        expect(flushSpy).toHaveBeenCalledTimes(1);
+        await service.onModuleDestroy();
+    });
+
+    it("grows the backoff on repeated failures", async () => {
+        const service = makeService();
+        const flushSpy = jest
+            .spyOn(service, "flush")
+            .mockRejectedValue(new Error("db down"));
+
+        service.onApplicationBootstrap();
+        await jest.advanceTimersByTimeAsync(500); // tick 1 -> backoff 500
+        await jest.advanceTimersByTimeAsync(500); // tick 2 -> backoff 1000
+        await jest.advanceTimersByTimeAsync(1000); // tick 3
+
+        expect(flushSpy).toHaveBeenCalledTimes(3);
+        await service.onModuleDestroy();
+    });
+
+    it("stops the loop and runs a final flush on destroy", async () => {
+        const service = makeService();
+        const flushSpy = jest.spyOn(service, "flush").mockResolvedValue();
+
+        service.onApplicationBootstrap();
+        await service.onModuleDestroy();
+        expect(flushSpy).toHaveBeenCalledTimes(1);
+
+        await jest.advanceTimersByTimeAsync(5000);
+        expect(flushSpy).toHaveBeenCalledTimes(1); // no further ticks
+    });
+});
