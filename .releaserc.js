@@ -25,5 +25,13 @@ module.exports = {
                 dockerProject: "arkcloudstorage",
             },
         ],
+        [
+            "@codedependant/semantic-release-docker",
+            {
+                dockerImage: "migrate",
+                dockerProject: "arkcloudstorage",
+                dockerBuildFlags: { target: "migrate" },
+            },
+        ],
     ],
 };

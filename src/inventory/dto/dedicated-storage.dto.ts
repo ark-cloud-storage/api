@@ -1,5 +1,4 @@
-import { IsInt, IsString } from "class-validator";
-import { DedicatedStorage } from "@prisma/client";
+import { IsInt, IsString, Max, MaxLength, Min } from "class-validator";
 import { StorageDto } from "./storage.dto";
 
 /**
@@ -10,12 +9,15 @@ export class DedicatedStorageDto extends StorageDto<"dedicated"> {
      * The unique ID of the cluster
      */
     @IsString()
+    @MaxLength(500)
     resourceId: string;
 
     /**
      * The amount of the resource
      */
     @IsInt()
+    @Min(-1_000_000_000)
+    @Max(1_000_000_000)
     amount: number;
 
     /**
@@ -28,20 +30,5 @@ export class DedicatedStorageDto extends StorageDto<"dedicated"> {
         super("dedicated", ownerId);
         this.resourceId = resourceId;
         this.amount = amount;
-    }
-
-    /**
-     * Converts a dedicated storage from the database to a dedicated storage DTO
-     * @param dedicatedStorage The dedicated storage from the database
-     * @returns The dedicated storage DTO
-     */
-    public static fromDatabase(
-        dedicatedStorage: DedicatedStorage,
-    ): DedicatedStorageDto {
-        return new DedicatedStorageDto(
-            dedicatedStorage.ownerId,
-            dedicatedStorage.resourceId,
-            dedicatedStorage.amount,
-        );
     }
 }

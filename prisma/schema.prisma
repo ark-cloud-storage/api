@@ -9,7 +9,7 @@ datasource db {
 
 model Cluster {
     id String @db.VarChar(100)
-    secret String @db.VarChar(100)
+    secret String @db.VarChar(255)
     @@id([id])
 }
 

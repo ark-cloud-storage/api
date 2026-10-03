@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuthController } from "./controller/auth.controller";
 import { AuthService } from "./service/auth.service";
+import { AuthCacheService } from "./service/auth-cache.service";
 import { AuthGuard } from "./gurad/auth.guard";
 import { DatabaseModule } from "../database/database.module";
 import { ConfigModule } from "@nestjs/config";
@@ -11,7 +12,7 @@ import { ConfigModule } from "@nestjs/config";
 @Module({
     imports: [DatabaseModule, ConfigModule],
     controllers: [AuthController],
-    providers: [AuthService, AuthGuard],
+    providers: [AuthService, AuthGuard, AuthCacheService],
     exports: [AuthService, AuthGuard],
 })
 export class AuthModule {}

@@ -16,6 +16,7 @@ export class CustomWsAdapter extends WsAdapter {
         const server = super.create(port, options);
         server.on("connection", (ws, request) => {
             ws.upgradeHeaders = request.headers;
+            ws.remoteAddress = request.socket?.remoteAddress;
         });
         return server;
     }

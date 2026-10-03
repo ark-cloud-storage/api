@@ -29,6 +29,7 @@
         "@nestjs/event-emitter": "3.0.1",
         "@nestjs/platform-express": "11.1.13",
         "@nestjs/platform-ws": "11.1.13",
+        "@nestjs/throttler": "6.4.0",
         "@nestjs/websockets": "11.1.13",
         "@prisma/client": "6.19.0",
         "boolean": "3.2.0",

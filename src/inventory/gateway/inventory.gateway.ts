@@ -6,19 +6,36 @@ import {
     SubscribeMessage,
     WebSocketGateway,
 } from "@nestjs/websockets";
-import { Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
+import {
+    Inject,
+    Logger,
+    UseGuards,
+    UsePipes,
+    ValidationPipe,
+} from "@nestjs/common";
+import { ThrottlerStorage } from "@nestjs/throttler";
+import { ConfigService } from "@nestjs/config";
+import { boolean } from "boolean";
 import { ClusterId } from "../../auth/decorator/cluster-id.decorator";
 import { AuthGuard } from "../../auth/gurad/auth.guard";
+import { AuthService } from "../../auth/service/auth.service";
+import { TRUST_PROXY } from "../../auth/constants";
+import { resolveWsClientIp } from "../../lib/client-ip.util";
 import { StorageDto } from "../dto/storage.dto";
+import { DedicatedStorageDto } from "../dto/dedicated-storage.dto";
 import { InventoryService } from "../service/inventory.service";
 import { WebSocket } from "ws";
 import { OnEvent } from "@nestjs/event-emitter";
+
+const WS_CONNECT_TTL_MS = 60_000;
+const WS_CONNECT_LIMIT = 5;
+const WS_CONNECT_BLOCK_MS = 60_000;
 
 /**
  * The inventory gateway that handles inventory updates
  */
 @WebSocketGateway({ path: "/inventory" })
-@UsePipes(ValidationPipe)
+@UsePipes(new ValidationPipe({ whitelist: true }))
 @UseGuards(AuthGuard)
 export class InventoryGateway
     implements OnGatewayConnection, OnGatewayDisconnect
@@ -38,17 +55,74 @@ export class InventoryGateway
      * @private
      */
     private readonly clientClusters = new Map<WebSocket, string>();
+    /**
+     * Whether the API runs behind a single trusted reverse proxy, in which
+     * case the rightmost X-Forwarded-For entry is trusted as the client IP
+     * @private
+     */
+    private readonly trustProxy: boolean;
 
     /**
      * Initializes the inventory gateway
      * @param inventoryService The inventory service
+     * @param authService The authentication service
+     * @param throttlerStorage The throttler storage used to rate-limit connect attempts
+     * @param configService The configuration service used to read TRUST_PROXY
      */
-    public constructor(private readonly inventoryService: InventoryService) {}
+    public constructor(
+        private readonly inventoryService: InventoryService,
+        private readonly authService: AuthService,
+        @Inject(ThrottlerStorage)
+        private readonly throttlerStorage: ThrottlerStorage,
+        private readonly configService: ConfigService,
+    ) {
+        this.trustProxy = boolean(this.configService.get(TRUST_PROXY));
+    }
 
     /**
-     * Handles a new client connection
+     * Handles a new client connection: rate-limits connect attempts per IP
+     * (before any auth work, so brute-force attempts are rejected before a
+     * scrypt is spent), then rejects unauthenticated sockets.
      */
-    public async handleConnection(): Promise<void> {
+    public async handleConnection(
+        client: WebSocket & {
+            upgradeHeaders?: Record<string, string>;
+            remoteAddress?: string;
+        },
+    ): Promise<void> {
+        const ip = resolveWsClientIp(
+            client.remoteAddress,
+            client.upgradeHeaders?.["x-forwarded-for"],
+            this.trustProxy,
+        );
+        const record = await this.throttlerStorage.increment(
+            `ws-connect:${ip}`,
+            WS_CONNECT_TTL_MS,
+            WS_CONNECT_LIMIT,
+            WS_CONNECT_BLOCK_MS,
+            "ws-connect",
+        );
+        if (record.isBlocked) {
+            this.logger.log(`Rate-limiting connections from ${ip}`);
+            client.close(1008, "Too Many Requests");
+            client.terminate();
+            return;
+        }
+
+        const headers = client.upgradeHeaders ?? {};
+        const id = headers["x-cluster-id"];
+        const secret = headers["x-cluster-secret"];
+        try {
+            if (!id || !secret) {
+                throw new Error("Missing credentials");
+            }
+            await this.authService.login(id, secret);
+        } catch {
+            this.logger.log("Rejecting unauthenticated client");
+            client.close(1008, "Unauthorized");
+            client.terminate();
+            return;
+        }
         this.logger.log("Client connected");
     }
 
@@ -118,7 +192,7 @@ export class InventoryGateway
     @SubscribeMessage("update")
     public async updateInventory(
         @ClusterId() clusterId: string,
-        @MessageBody() storage: StorageDto,
+        @MessageBody() storage: DedicatedStorageDto,
     ): Promise<void> {
         // update the inventory
         await this.inventoryService.updateInventory(clusterId, storage);

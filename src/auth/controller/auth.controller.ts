@@ -1,9 +1,11 @@
 import { Body, Controller, Post } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "../service/auth.service";
 import { ClusterDto } from "../dto/cluster.dto";
 import { LoginRequestDto } from "../dto/login.request.dto";
 import { RegisterRequestDto } from "../dto/register.request.dto";
 import { AllowUnauthorized } from "../decorator/allow-unauthorized.decorator";
+import { LoginResponseDto } from "../dto/login.response.dto";
 
 /**
  * The authentication controller that handles authentication requests
@@ -21,8 +23,12 @@ export class AuthController {
      */
     @Post("login")
     @AllowUnauthorized()
-    public async login(@Body() body: LoginRequestDto): Promise<ClusterDto> {
-        return this.authService.login(body.id, body.secret);
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    public async login(
+        @Body() body: LoginRequestDto,
+    ): Promise<LoginResponseDto> {
+        const id = await this.authService.login(body.id, body.secret);
+        return new LoginResponseDto(id);
     }
 
     /**
@@ -30,6 +36,7 @@ export class AuthController {
      */
     @Post("register")
     @AllowUnauthorized()
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
     public async register(
         @Body() body: RegisterRequestDto,
     ): Promise<ClusterDto> {
